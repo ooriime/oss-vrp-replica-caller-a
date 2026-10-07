@@ -46,6 +46,19 @@ jobs:
           echo "DEMO2A: needs.scan.outputs (toJSON)           = ${OUT_ALL}"
           echo "DEMO2A: needs.scan.outputs.mandatory-checks   = '${OUT_MANDATORY}'"
           echo "DEMO2A: needs.scan.outputs.enforce            = '${OUT_ENFORCE}'"
+          {
+            echo "### Demonstration 2, path A - what the CALLER can read from the called workflow's outputs"
+            echo
+            echo "| expression | value |"
+            echo "|---|---|"
+            echo "| \`needs.scan.result\` | \`${RESULT}\` |"
+            echo "| \`toJSON(needs.scan.outputs)\` | \`${OUT_ALL}\` |"
+            echo "| \`needs.scan.outputs.mandatory-checks\` | \`${OUT_MANDATORY}\` |"
+            echo "| \`needs.scan.outputs.enforce\` | \`${OUT_ENFORCE}\` |"
+            echo
+            echo "The called workflow declares job-level \`outputs:\` but no \`on.workflow_call.outputs\`,"
+            echo "so none of them reach the caller."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 'DEMO 3: list every artifact that the called workflow left in OUR run'
         shell: 'bash'
@@ -79,6 +92,24 @@ jobs:
           echo "=== harvested/zizmor/enriched.sarif.json ==="
           cat harvested/zizmor/enriched.sarif.json
 
+          {
+            echo "### Demonstration 3 - artifacts the privileged callee left in the CALLER's run"
+            echo
+            echo '```'
+            find harvested -type f | sort
+            echo '```'
+            echo
+            echo "Post-processed scan configuration, downloaded by the caller:"
+            echo '```yaml'
+            cat harvested/zizmor-config/zizmor-config.yaml
+            echo '```'
+            echo
+            echo "OIDC claims captured inside the privileged callee job, read by the caller:"
+            echo '```json'
+            cat harvested/oidc-claims-called-zizmor-config/oidc-claims-called-zizmor-config.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: 'DEMO 2 path B: does any harvested artifact contain token material?'
         if: 'always()'
         shell: 'bash'
@@ -89,6 +120,18 @@ jobs:
           grep -R -n 'replica-not-a-credential' harvested || echo "NO MATCH: auth_token value absent from every artifact"
           echo "--- grep for bearer/authorization headers ---"
           grep -R -n -i 'bearer\|authorization' harvested || echo "NO MATCH: no bearer/authorization material in any artifact"
+          {
+            echo "### Demonstration 2, path B - token material in the harvested artifacts"
+            echo
+            echo '```'
+            echo "JWT-shaped (eyJ...):"
+            grep -R -o 'eyJ[A-Za-z0-9_-]\{8,\}' harvested || echo "  NO MATCH"
+            echo "auth_token value:"
+            grep -R -o 'replica-not-a-credential' harvested || echo "  NO MATCH"
+            echo "bearer / authorization:"
+            grep -R -o -i 'bearer\|authorization' harvested || echo "  NO MATCH"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 'DEMO 2 path C: can the caller read the privileged job log, and does it leak the token?'
         if: 'always()'
@@ -122,6 +165,19 @@ jobs:
           grep -o -n 'eyJ[A-Za-z0-9_-]\{8,\}' callee.log || echo "NO MATCH: no JWT-shaped string in the privileged job log"
           echo "--- grep for the auth_token value in the privileged job log ---"
           grep -n 'replica-not-a-credential-[0-9a-f]' callee.log || echo "NO MATCH: auth_token value never appears unmasked in the log"
+          {
+            echo "### Demonstration 2, path C - the privileged callee job's log, read by the CALLER"
+            echo
+            echo "| question | measured answer |"
+            echo "|---|---|"
+            echo "| can the caller fetch the privileged job's log? | HTTP \`${HTTP_CODE}\`, $(wc -c < callee.log) bytes |"
+            MASKED="$(grep -c 'GOOGLE_ACCESS_TOKEN: \*\*\*' callee.log || true)"
+            echo "| lines showing \`GOOGLE_ACCESS_TOKEN: ***\` | ${MASKED} |"
+            JWTC="$(grep -c -o 'eyJ[A-Za-z0-9_-]\{8,\}' callee.log || true)"
+            echo "| JWT-shaped strings in that log | ${JWTC} |"
+            TOKC="$(grep -c 'replica-not-a-credential-[0-9a-f]' callee.log || true)"
+            echo "| unmasked \`auth_token\` occurrences in that log | ${TOKC} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 'Publish harvest evidence'
         if: 'always()'
