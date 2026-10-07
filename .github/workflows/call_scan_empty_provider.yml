@@ -1,0 +1,35 @@
+# CONTROL for DEMONSTRATION 4: identical call with `wif_provider` OMITTED, so the replica's
+# fallback provider applies. Measures whether `zizmor-scan` (and therefore `zizmor-upload`)
+# is reachable when the caller supplies no provider. Calls OUR OWN replica only.
+
+name: 'Caller A - control, wif_provider omitted'
+
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  scan:
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    uses: ooriime/oss-vrp-replica-workflows/.github/workflows/github_actions_scan.yml@main
+    with:
+      zizmor_result_bucket: 'caller-supplied-bucket-control'
+      zizmor_enforce: 'false'
+
+  report-reachability:
+    needs: ['scan']
+    if: 'always()'
+    runs-on: 'ubuntu-latest'
+    permissions:
+      actions: 'read'
+    steps:
+      - name: 'DEMO 4 control: which callee jobs ran?'
+        shell: 'bash'
+        env:
+          GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+        run: |
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs" \
+            --jq '.jobs[] | "\(.name)\t\(.status)\t\(.conclusion)"'

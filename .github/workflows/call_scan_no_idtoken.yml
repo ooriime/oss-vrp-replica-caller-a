@@ -1,0 +1,19 @@
+# CONTROL: identical call, but the caller job does NOT grant `id-token: write`.
+# Measures whether the callee's job-level `id-token: 'write'` is enough on its own.
+# Calls OUR OWN replica only.
+
+name: 'Caller A - control, caller withholds id-token write'
+
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  scan:
+    permissions:
+      contents: 'read'
+    uses: ooriime/oss-vrp-replica-workflows/.github/workflows/github_actions_scan.yml@main
+    with:
+      wif_provider: 'projects/000000000000/locations/global/workloadIdentityPools/replica-fake-pool/providers/replica-fake-provider'
+      zizmor_result_bucket: 'caller-supplied-bucket-noidtoken'
