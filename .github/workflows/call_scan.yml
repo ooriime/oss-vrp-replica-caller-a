@@ -104,11 +104,18 @@ jobs:
             echo "DEMO2C: zizmor-config job not present in this run"
             exit 0
           fi
-          if gh api "/repos/${GITHUB_REPOSITORY}/actions/jobs/${JOB_ID}/logs" > callee.log 2> callee.err; then
-            echo "DEMO2C: caller CAN read the privileged job log ($(wc -c < callee.log) bytes)"
-          else
-            echo "DEMO2C: caller could NOT read the privileged job log:"; cat callee.err; exit 0
+          # Use curl rather than `gh api`: gh refuses to emit a body containing terminal
+          # escape sequences, and Actions logs are full of them. curl drops the
+          # Authorization header on the cross-host redirect to the pre-signed blob URL.
+          HTTP_CODE="$(curl -sSL -o callee.log -w '%{http_code}' \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/${JOB_ID}/logs")"
+          echo "DEMO2C: log fetch HTTP status = ${HTTP_CODE}, $(wc -c < callee.log) bytes"
+          if [ "${HTTP_CODE}" != "200" ]; then
+            echo "DEMO2C: caller could NOT read the privileged job log"; head -c 400 callee.log; exit 0
           fi
+          echo "DEMO2C: caller CAN read the privileged job log"
           echo "--- lines mentioning the provider / masking / GOOGLE_ACCESS_TOKEN ---"
           grep -n 'workload_identity_provider\|GOOGLE_ACCESS_TOKEN\|add-mask\|auth_token' callee.log || true
           echo "--- grep for JWT-shaped material in the privileged job log ---"
